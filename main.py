@@ -20,10 +20,7 @@ API_KEY = os.getenv("RIOT_API_KEY")
 @client.event
 async def on_ready():
     print("Bot is ready.")
-    async with aiosqlite.connect("main.db") as db:
-        async with db.cursor() as cursor:
-            await cursor.execute("CREATE TABLE IF NOT EXISTS guilds (guildID INT)")
-            await db.commit()
+    sqlite_Leaderboard.create_db()
 
 
 # get player rank
@@ -47,7 +44,6 @@ async def rank(ctx, region, username):
                 queatype = entry["queueType"]
             if queatype == "RANKED_SOLO_5x5":
                 Rank = entry["tier"] + " " + entry["rank"]
-                active = entry["inactive"]
                 LP = entry["leaguePoints"]
                 wins_losses = str(entry["wins"]) + "/" + str(entry["losses"])
 
@@ -56,7 +52,6 @@ async def rank(ctx, region, username):
                 embed.add_field(name="Rank", value=Rank, inline=True)
                 embed.add_field(name="LP", value=LP, inline=True)
                 embed.add_field(name="Wins/Losses", value=wins_losses, inline=True)
-                embed.add_field(name="Active", value=active, inline=True)
                 await ctx.send(embed=embed)
 
     else:
@@ -148,7 +143,7 @@ async def matches(ctx, region, username):
 
 # add player to leaderboard
 @client.command()
-@commands.cooldown(1, 10, commands.BucketType.user)
+@commands.cooldown(1, 5, commands.BucketType.user)
 async def add(ctx, region, username):
     valid_regions = ["na1", "euw1"]
     guildID = ctx.message.guild.id
@@ -161,38 +156,19 @@ async def add(ctx, region, username):
         await ctx.send("Invalid username. Please enter a username containing only letters and numbers.")
         return
 
-    if sqlite_Leaderboard.check_player(username, guildID):
-        await ctx.send(f"> {username} is already in the leaderboard.")
-    else:
-        sqlite_Leaderboard.add_player(username, region, guildID)
-        await ctx.send(f"> {username} has been added to the leaderboard.")
-
 
 # remove player from leaderboard
 @client.command()
-@commands.cooldown(1, 10, commands.BucketType.user)
+@commands.cooldown(1, 5, commands.BucketType.user)
 async def remove(ctx, username):
     guildID = ctx.message.guild.id
-    if not sqlite_Leaderboard.check_player(username, guildID):
-        sqlite_Leaderboard.remove_player(username, guildID)
-        await ctx.send(f"> {username} has been removed from the leaderboard.")
-    else:
-        await ctx.send(f"> {username} is not in the leaderboard.")
 
 
 # print leaderboard
 @client.command()
-@commands.cooldown(1, 10, commands.BucketType.user)
+@commands.cooldown(1, 5, commands.BucketType.user)
 async def lb(ctx):
     guildID = ctx.message.guild.id
-    leaderboard = sqlite_Leaderboard.get_leaderboard(guildID)
-    embed = discord.Embed(title="Leaderboard", color=discord.Color.green())
-    if not leaderboard:
-        await ctx.send("Create a leaderboard with the command !create_lb")
-    else:
-        for i, player in enumerate(leaderboard):
-            embed.add_field(name=f"{i + 1}. {player[0]}", value=player[1] + " | LP: " + str(player[2]), inline=False)
-        await ctx.send(embed=embed)
 
 
 # create leaderboard table
@@ -200,27 +176,18 @@ async def lb(ctx):
 @commands.cooldown(1, 10, commands.BucketType.user)
 async def create_lb(ctx):
     guildID = ctx.message.guild.id
-    if sqlite_Leaderboard.create_db(guildID):
-        await ctx.send(f"Table '{guildID}' created successfully")
-    else:
-        await ctx.send(f"Table '{guildID}' already exists")
 
 
 # clear leaderboard table
 @client.command()
-@commands.cooldown(1, 10, commands.BucketType.user)
+@commands.cooldown(1, 5, commands.BucketType.user)
 async def clear_lb(ctx):
     guildID = ctx.message.guild.id
-
-    if sqlite_Leaderboard.clear_db(guildID):
-        await ctx.send(f"Table '{guildID}' cleared successfully")
-    else:
-        await ctx.send(f"Table '{guildID}' does not exist")
 
 
 # Help
 @client.command()
-@commands.cooldown(1, 10, commands.BucketType.user)
+@commands.cooldown(1, 5, commands.BucketType.user)
 async def help(ctx):
     help_embed = discord.Embed(title="Help", color=discord.Color.dark_gold())
 
@@ -237,12 +204,12 @@ async def help(ctx):
 
 
 # Error handling
-@help.error
+@client.event
 async def Wait_time(ctx, error):
-    if isinstance(error, commands.CommandOnCooldown):
+    if isinstance(error, commands.errors.CommandOnCooldown):
         await ctx.send(f"Please wait {error.retry_after:.0f} seconds before using this command again.")
     else:
-        await ctx.send(f"Please wait {error.retry_after:.0f} seconds before using this command again.")
+        raise error
 
 
 client.run(TOKEN)
